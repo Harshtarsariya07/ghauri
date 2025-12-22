@@ -301,6 +301,14 @@ def main():
         default=None,
         metavar="",
     )
+    injection.add_argument(
+        "--secret-key",
+        dest="secret_key",
+        type=str,
+        help="Secret key for encryption/decryption of parameters marked with *",
+        default=None,
+        metavar="",
+    )
     detection = parser.add_argument_group(
         "Detection",
         description="These options can be used to customize the detection phase",
@@ -481,6 +489,7 @@ def main():
         args.testparameter = [i.strip() for i in args.testparameter.split(",")]
 
     if args.bulkfile:
+        # Store secret_key in args for bulk processing
         resp = ghauri.perform_multitarget_injection(args=args)
     else:
         resp = ghauri.perform_injection(
@@ -525,6 +534,7 @@ def main():
             bulkfile=bool(args.bulkfile),
             random_agent=args.random_agent,
             mobile=args.mobile,
+            secret_key=args.secret_key,
         )
         if resp.is_injected:
             target = ghauri.Ghauri(

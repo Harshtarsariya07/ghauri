@@ -60,6 +60,7 @@ from ghauri.common.config import conf
 from ghauri.common.payloads import PAYLOADS
 from ghauri.logger.colored_logger import logger
 from ghauri.common.prettytable import PrettyTable, from_db_cursor
+from ghauri.common.encryption import decrypt_parameter, encrypt_parameter
 
 
 class Struct:
@@ -1415,10 +1416,34 @@ def prepare_attack_request(
         and "*" in urldecode(value)
         and injection_type in ["GET", "POST", "COOKIE"]
     ):
-        # dirty fix for when value is provided with custom injection marker
-        parameter = f"{key}={value}"
-        prepared_payload = re.sub(r"\*", f"{payload}", parameter)
-        prepared_payload = re.sub(re.escape(parameter), prepared_payload, text)
+        # Check if this is an encrypted parameter that needs decryption
+        value_decoded = urldecode(value)
+        if conf.secret_key and "*" in value_decoded:
+            try:
+                # Extract encrypted value (remove the * marker)
+                encrypted_value = value_decoded.replace("*", "")
+                # Decrypt the parameter value
+                decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
+                logger.info(f"[*] Decrypted parameter '{key}' value: {decrypted_value}")
+                # Add payload to decrypted value
+                value_with_payload = decrypted_value + payload
+                # Encrypt the combined value
+                encrypted_with_payload = encrypt_parameter(value_with_payload, conf.secret_key)
+                logger.debug(f"[*] Encrypted value with payload: {encrypted_with_payload[:50]}...")
+                # Replace the original encrypted value with the new encrypted value
+                parameter = f"{key}={value}"
+                prepared_payload = re.sub(re.escape(parameter), f"{key}={encrypted_with_payload}", text)
+            except Exception as e:
+                logger.debug(f"Error processing encrypted parameter: {e}")
+                # Fall back to normal processing
+                parameter = f"{key}={value}"
+                prepared_payload = re.sub(r"\*", f"{payload}", parameter)
+                prepared_payload = re.sub(re.escape(parameter), prepared_payload, text)
+        else:
+            # dirty fix for when value is provided with custom injection marker
+            parameter = f"{key}={value}"
+            prepared_payload = re.sub(r"\*", f"{payload}", parameter)
+            prepared_payload = re.sub(re.escape(parameter), prepared_payload, text)
     else:
         key = re.escape(key)
         value = re.escape(value)
@@ -1447,20 +1472,59 @@ def prepare_attack_request(
                 )
                 mkv = re.search(REGEX_JSON_KEY_VALUE, text)
                 if _ and "*" in _.group(4).strip():
-                    value = re.sub(r"\*", "", _.group(4).strip())
-                    if len(value) > 0:
-                        prepared_payload = re.sub(
-                            REGEX_JSON_INJECTION,
-                            "\\1\\2\\3%s%s\\5"
-                            % (value.replace('"', '\\"'), payload.replace('"', '\\"')),
-                            text,
-                        )
+                    value_stripped = _.group(4).strip()
+                    # Check if this is an encrypted parameter
+                    if conf.secret_key:
+                        try:
+                            # Extract encrypted value (remove the * marker)
+                            encrypted_value = value_stripped.replace("*", "").strip('"\'')
+                            # Decrypt the parameter value
+                            decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
+                            logger.info(f"[*] Decrypted JSON parameter '{key}' value: {decrypted_value}")
+                            # Add payload to decrypted value
+                            value_with_payload = decrypted_value + payload
+                            # Encrypt the combined value
+                            encrypted_with_payload = encrypt_parameter(value_with_payload, conf.secret_key)
+                            logger.debug(f"[*] Encrypted JSON value with payload: {encrypted_with_payload[:50]}...")
+                            # Replace with encrypted value
+                            prepared_payload = re.sub(
+                                REGEX_JSON_INJECTION,
+                                "\\1\\2\\3\"%s\"\\5" % (encrypted_with_payload.replace('"', '\\"')),
+                                text,
+                            )
+                        except Exception as e:
+                            logger.debug(f"Error processing encrypted JSON parameter: {e}")
+                            # Fall back to normal processing
+                            value = re.sub(r"\*", "", value_stripped)
+                            if len(value) > 0:
+                                prepared_payload = re.sub(
+                                    REGEX_JSON_INJECTION,
+                                    "\\1\\2\\3%s%s\\5"
+                                    % (value.replace('"', '\\"'), payload.replace('"', '\\"')),
+                                    text,
+                                )
+                            else:
+                                prepared_payload = re.sub(
+                                    REGEX_JSON_INJECTION,
+                                    "\\1\\2\\3%s\\5" % (payload.replace('"', '\\"')),
+                                    text,
+                                )
                     else:
-                        prepared_payload = re.sub(
-                            REGEX_JSON_INJECTION,
-                            "\\1\\2\\3%s\\5" % (payload.replace('"', '\\"')),
-                            text,
-                        )
+                        # Normal processing without encryption
+                        value = re.sub(r"\*", "", value_stripped)
+                        if len(value) > 0:
+                            prepared_payload = re.sub(
+                                REGEX_JSON_INJECTION,
+                                "\\1\\2\\3%s%s\\5"
+                                % (value.replace('"', '\\"'), payload.replace('"', '\\"')),
+                                text,
+                            )
+                        else:
+                            prepared_payload = re.sub(
+                                REGEX_JSON_INJECTION,
+                                "\\1\\2\\3%s\\5" % (payload.replace('"', '\\"')),
+                                text,
+                            )
                 else:
                     # ugly hack for JSON based int values to convert them into string for adding a payload properly
                     v_ = "\\4%s\\5"
@@ -1487,9 +1551,35 @@ def prepare_attack_request(
             else:
                 _ = re.search(REGEX_GET_POST_COOKIE_INJECTION, text)
                 if _ and "*" in _.group(3).strip():
-                    prepared_payload = re.sub(
-                        REGEX_GET_POST_COOKIE_INJECTION, "\\1\\2%s" % (payload), text
-                    )
+                    value_stripped = _.group(3).strip()
+                    # Check if this is an encrypted parameter
+                    if conf.secret_key:
+                        try:
+                            # Extract encrypted value (remove the * marker)
+                            encrypted_value = value_stripped.replace("*", "")
+                            # Decrypt the parameter value
+                            decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
+                            logger.info(f"[*] Decrypted parameter '{key}' value: {decrypted_value}")
+                            # Add payload to decrypted value
+                            value_with_payload = decrypted_value + payload
+                            # Encrypt the combined value
+                            encrypted_with_payload = encrypt_parameter(value_with_payload, conf.secret_key)
+                            logger.debug(f"[*] Encrypted value with payload: {encrypted_with_payload[:50]}...")
+                            # Replace with encrypted value
+                            prepared_payload = re.sub(
+                                REGEX_GET_POST_COOKIE_INJECTION, "\\1\\2%s" % (encrypted_with_payload), text
+                            )
+                        except Exception as e:
+                            logger.debug(f"Error processing encrypted parameter: {e}")
+                            # Fall back to normal processing
+                            prepared_payload = re.sub(
+                                REGEX_GET_POST_COOKIE_INJECTION, "\\1\\2%s" % (payload), text
+                            )
+                    else:
+                        # Normal processing without encryption
+                        prepared_payload = re.sub(
+                            REGEX_GET_POST_COOKIE_INJECTION, "\\1\\2%s" % (payload), text
+                        )
                 else:
                     prepared_payload = re.sub(
                         REGEX_GET_POST_COOKIE_INJECTION, "\\1\\2\\3%s" % (payload), text
@@ -1501,12 +1591,41 @@ def prepare_attack_request(
         if injection_type in ["HEADER"]:
             _ = re.search(REGEX_HEADER_INJECTION, text)
             if _ and "*" in _.group(3).strip():
-                prepared_payload = re.sub(
-                    REGEX_HEADER_INJECTION, "\\1\\2\\3%s" % (payload), text
-                )
-                prepared_payload = replace_with(
-                    prepared_payload, character="*", replace_with="", right=False
-                )
+                value_stripped = _.group(3).strip()
+                    # Check if this is an encrypted parameter
+                    if conf.secret_key:
+                        try:
+                            # Extract encrypted value (remove the * marker)
+                            encrypted_value = value_stripped.replace("*", "").strip()
+                            # Decrypt the parameter value
+                            decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
+                            logger.info(f"[*] Decrypted header parameter '{key}' value: {decrypted_value}")
+                            # Add payload to decrypted value
+                            value_with_payload = decrypted_value + payload
+                            # Encrypt the combined value
+                            encrypted_with_payload = encrypt_parameter(value_with_payload, conf.secret_key)
+                            logger.debug(f"[*] Encrypted header value with payload: {encrypted_with_payload[:50]}...")
+                            # Replace with encrypted value
+                            prepared_payload = re.sub(
+                                REGEX_HEADER_INJECTION, "\\1\\2 %s" % (encrypted_with_payload), text
+                            )
+                    except Exception as e:
+                        logger.debug(f"Error processing encrypted header parameter: {e}")
+                        # Fall back to normal processing
+                        prepared_payload = re.sub(
+                            REGEX_HEADER_INJECTION, "\\1\\2\\3%s" % (payload), text
+                        )
+                        prepared_payload = replace_with(
+                            prepared_payload, character="*", replace_with="", right=False
+                        )
+                else:
+                    # Normal processing without encryption
+                    prepared_payload = re.sub(
+                        REGEX_HEADER_INJECTION, "\\1\\2\\3%s" % (payload), text
+                    )
+                    prepared_payload = replace_with(
+                        prepared_payload, character="*", replace_with="", right=False
+                    )
             else:
                 prepared_payload = re.sub(
                     REGEX_HEADER_INJECTION, "\\1\\2\\3%s" % (payload), text

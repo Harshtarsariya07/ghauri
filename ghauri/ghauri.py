@@ -136,6 +136,7 @@ def perform_multitarget_injection(args):
                 bulkfile=True,
                 random_agent=args.random_agent,
                 mobile=args.mobile,
+                secret_key=getattr(args, 'secret_key', None),
             )
             if resp.is_injected:
                 exp_choice = logger.read_input(
@@ -298,6 +299,7 @@ def perform_injection(
     bulkfile=False,
     random_agent=False,
     mobile=False,
+    secret_key=None,
 ):
     verbose_levels = {
         1: logging.INFO,
@@ -318,6 +320,7 @@ def perform_injection(
     conf.batch = batch
     conf._random_ua = random_agent
     conf._is_mobile_ua = mobile
+    conf.secret_key = secret_key
     if not bulkfile:
         logger.start("starting")
     if not force_ssl:
