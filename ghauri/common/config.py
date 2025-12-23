@@ -128,6 +128,7 @@ class GhauriConfigs:
         self._is_mobile_ua = False
         self._random_agent_dict = {}
         self.secret_key = None
+        self._decrypted_params_logged = set()
 
     @property
     def ignore_code(self):
