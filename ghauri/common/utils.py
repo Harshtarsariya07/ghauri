@@ -1403,14 +1403,55 @@ def prepare_attack_request(
         key_new = key_to_split_by.replace("*", "")
         prepared_payload = f"{init}{key_new}{payload}{last}"
     elif key == "#1*" and injection_type == "GET":
-        if value == "*":
-            init, last = text.split(value)
-            prepared_payload = f"{init}{payload}{last}"
+        parsed_url = urlparse(text)
+        path_segments = parsed_url.path.split("/")
+        target_idx = None
+        for idx, seg in enumerate(path_segments):
+            if "*" in seg:
+                target_idx = idx
+                break
+            if seg == value:
+                target_idx = idx
+        if (
+            target_idx is not None
+            and conf.secret_key
+            and "*" in path_segments[target_idx]
+        ):
+            try:
+                segment_value = path_segments[target_idx]
+                encrypted_value = segment_value.replace("*", "")
+                decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
+                param_key = f"{injection_type}:URI:{target_idx}"
+                if param_key not in conf._decrypted_params_logged:
+                    logger.info(f"[*] Decrypted URI segment value: {decrypted_value}")
+                    conf._decrypted_params_logged.add(param_key)
+                value_with_payload = decrypted_value + payload
+                encrypted_with_payload = encrypt_parameter(
+                    value_with_payload, conf.secret_key
+                )
+                logger.debug(
+                    f"[*] Encrypted URI value with payload: {encrypted_with_payload[:50]}..."
+                )
+                path_segments[target_idx] = encrypted_with_payload
+                new_path = "/".join(path_segments)
+                prepared_payload = parsed_url._replace(path=new_path).geturl()
+            except Exception as e:
+                logger.debug(f"Error processing encrypted URI parameter: {e}")
+                if value == "*":
+                    init, last = text.split(value)
+                    prepared_payload = f"{init}{payload}{last}"
+                else:
+                    prepared_payload = re.sub(
+                        r"(?is)(/%s)" % (value), "\\1%s" % (payload), text
+                    )
         else:
-            ok = re.search(r"(?is)(?:/%s)" % value, text)
-            prepared_payload = re.sub(
-                r"(?is)(/%s)" % (value), "\\1%s" % (payload), text
-            )
+            if value == "*":
+                init, last = text.split(value)
+                prepared_payload = f"{init}{payload}{last}"
+            else:
+                prepared_payload = re.sub(
+                    r"(?is)(/%s)" % (value), "\\1%s" % (payload), text
+                )
     elif (
         key != "#1*"
         and "*" in urldecode(value)
@@ -1424,11 +1465,7 @@ def prepare_attack_request(
                 encrypted_value = value_decoded.replace("*", "")
                 # Decrypt the parameter value
                 decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
-                # Only log decrypted value once per parameter
-                param_key = f"{injection_type}:{key}"
-                if param_key not in conf._decrypted_params_logged:
-                    logger.info(f"[*] Decrypted parameter '{key}' value: {decrypted_value}")
-                    conf._decrypted_params_logged.add(param_key)
+                logger.info(f"[*] Decrypted parameter '{key}' value: {decrypted_value}")
                 # Add payload to decrypted value
                 value_with_payload = decrypted_value + payload
                 # Encrypt the combined value
@@ -1484,11 +1521,7 @@ def prepare_attack_request(
                             encrypted_value = value_stripped.replace("*", "").strip('"\'')
                             # Decrypt the parameter value
                             decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
-                            # Only log decrypted value once per parameter
-                            param_key = f"{injection_type}:JSON:{key}"
-                            if param_key not in conf._decrypted_params_logged:
-                                logger.info(f"[*] Decrypted JSON parameter '{key}' value: {decrypted_value}")
-                                conf._decrypted_params_logged.add(param_key)
+                            logger.info(f"[*] Decrypted JSON parameter '{key}' value: {decrypted_value}")
                             # Add payload to decrypted value
                             value_with_payload = decrypted_value + payload
                             # Encrypt the combined value
@@ -1567,11 +1600,7 @@ def prepare_attack_request(
                             encrypted_value = value_stripped.replace("*", "")
                             # Decrypt the parameter value
                             decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
-                            # Only log decrypted value once per parameter
-                            param_key = f"{injection_type}:{key}"
-                            if param_key not in conf._decrypted_params_logged:
-                                logger.info(f"[*] Decrypted parameter '{key}' value: {decrypted_value}")
-                                conf._decrypted_params_logged.add(param_key)
+                            logger.info(f"[*] Decrypted parameter '{key}' value: {decrypted_value}")
                             # Add payload to decrypted value
                             value_with_payload = decrypted_value + payload
                             # Encrypt the combined value
@@ -1611,11 +1640,7 @@ def prepare_attack_request(
                         encrypted_value = value_stripped.replace("*", "").strip()
                         # Decrypt the parameter value
                         decrypted_value = decrypt_parameter(encrypted_value, conf.secret_key)
-                        # Only log decrypted value once per parameter
-                        param_key = f"{injection_type}:HEADER:{key}"
-                        if param_key not in conf._decrypted_params_logged:
-                            logger.info(f"[*] Decrypted header parameter '{key}' value: {decrypted_value}")
-                            conf._decrypted_params_logged.add(param_key)
+                        logger.info(f"[*] Decrypted header parameter '{key}' value: {decrypted_value}")
                         # Add payload to decrypted value
                         value_with_payload = decrypted_value + payload
                         # Encrypt the combined value
