@@ -127,6 +127,10 @@ SQL_ERRORS = {
         r"Pdo[./_\\]Mysql",
         r"Unknown column '[^ ]+' in 'field list'",
         r"(?is)(?:A Database error Occurred)",
+        r"org\.springframework\.dao\.(?:DataIntegrityViolationException|BadSQLGrammarException)",
+        r"DataIntegrityViolationException",
+        r"BadSQLGrammarException",
+        r"SQLGrammarException",
     ),
     "PostgreSQL": (
         r"PostgreSQL.*ERROR",
@@ -145,6 +149,10 @@ SQL_ERRORS = {
         r"org\.postgresql\.jdbc",
         r"Pdo[./_\\]Pgsql",
         r"PSQLException",
+        r"org\.springframework\.dao\.(?:DataIntegrityViolationException|BadSQLGrammarException)",
+        r"DataIntegrityViolationException",
+        r"BadSQLGrammarException",
+        r"SQLGrammarException",
     ),
     "Microsoft SQL Server": (
         r"Driver.* SQL[\-\_\ ]*Server",
@@ -174,6 +182,10 @@ SQL_ERRORS = {
         r"Pdo[./_\\](Mssql|SqlSrv)",
         r"SQL(Srv|Server)Exception",
         r"(?is)(?:Microsoft SQL (?:Server\s)?Native Client (?:[\d\.]+ )?error '[0-9a-fA-F]{8})",
+        r"org\.springframework\.dao\.(?:DataIntegrityViolationException|BadSQLGrammarException)",
+        r"DataIntegrityViolationException",
+        r"BadSQLGrammarException",
+        r"SQLGrammarException",
     ),
     "Microsoft Access": (
         r"Microsoft Access Driver",

